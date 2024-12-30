@@ -2,4 +2,4 @@ cirq==0.14.0
 qsimcirq==0.2.3
 numpy==1.23.5
 
-#Note: The code should work with any recent versions of the required libraries. 
+#Note: The code should work with any recent versions of the required libraries.

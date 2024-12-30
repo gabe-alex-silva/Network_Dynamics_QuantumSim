@@ -22,3 +22,7 @@ This repository contains code for simulating a quantum circuit that integrates G
 ## Related arXiv paper
 See https://arxiv.org/abs/2403.18963 for full theoretical details, test example constructions, circuit design, and the relevance of the notation used in this code. 
 
+Gabriel A. Silva
+University of California San Diego
+gsilva@ucsd.edu
+

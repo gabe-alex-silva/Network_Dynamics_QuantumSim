@@ -1,61 +1,51 @@
-import cirq
-import qsimcirq
-import numpy as np
-from collections import Counter
-from grover import run_grover_search_on_7qubits_with_ancilla
-from deutsch_josza import run_deutsch_josza_7q, classical_threshold_assignment
-
-def main():
-    #----------------------------------------
-    # 0) Define the true S_n (marked states)
-    #----------------------------------------
-    S_n_true = [5, 12, 99, 100]  # 7-bit states that "occur" in our scenario
-    print("=== EXAMPLE: S_n_true =", S_n_true, "===\n")
+# ============================
+# main.py
+# ============================
+def main_demo_run():
+    # S_n INPUT VALUES: some set of 7-bit patterns
+    S_n = [5, 15, 27, 29]
+    print("=== Example with S_n =", S_n, "===")
     
-    #----------------------------------------
-    # 1) RUN GROVER to identify these states
-    #----------------------------------------
+    # Step 1: GROVER to identify/amplify states in S_n
+    # Choose # of iterations (try 2..5 for demonstration)
+    num_grover_iterations = 3
     grover_circ, hist_data, hist_anc = run_grover_search_on_7qubits_with_ancilla(
-        S_n_true, 
-        num_iterations=4, 
-        repetitions=512
+        S_n, num_iterations=num_grover_iterations, repetitions=512
     )
-    print("=== GROVER PHASE ===")
-    print("Grover circuit:\n", grover_circ)
+    print("\n--- Grover Phase ---")
+    print("Grover circuit (truncated to 30 lines):")
+    print(str(grover_circ)[:1000], "...")  # just not to overflow
     
-    print("\nGrover measurement (data) histogram:")
-    print(hist_data)
-    print("\nGrover ancilla measurement histogram:")
-    print(hist_anc)
-    print("\n(Interpretation: states in S_n_true are hopefully amplified in 'm_data'.)\n")
+    # Summarize counts for the marked states
+    # "hist_data" is a Counter, we can do:
+    total_marked_counts = 0
+    for x in S_n:
+        c = hist_data[x]
+        total_marked_counts += c
+        print(f"State {x} => {c} counts")
+    print(f"Sum of marked states: {total_marked_counts}\n")
     
-    #----------------------------------------
-    # 2) Decide threshold and do classical assignment
-    #----------------------------------------
-    Sigma_T = 50
-    threshold_dict = classical_threshold_assignment(S_n_true, Sigma_T)
-    print("Threshold dict (x >= 50 => 1, else 0):")
-    print(threshold_dict, "\n")
+    # Step 2: THRESHOLD ASSIGNMENT
+    # Suppose threshold=20 => any x >= 20 => 1, else => 0
+    Sigma_T = 60
+    threshold_dict = classical_threshold_assignment(S_n, Sigma_T)
+    print("--- Threshold assignment ---")
+    for x in S_n:
+        print(f"x={x}, threshold => {threshold_dict[x]}")
     
-    #----------------------------------------
-    # 3) DEUTSCH–JOSZA RUNS
-    #----------------------------------------
+    # Step 3: DEUTSCH–JOSZA
+    #   (a) assign_complement=0 => states not in S_n forced to 0
+    circ_dj_a, counts_a = run_deutsch_josza_7q(S_n, threshold_dict, assign_complement=0, reps=512)
+    print("\n--- Deutsch–Jozsa run #1 (complement=0) ---")
+    print("Measurement histogram:", counts_a)
     
-    # (a) assign_complement = 0
-    circ1, counts1 = run_deutsch_josza_7q(S_n_true, threshold_dict, assign_complement=0, reps=512)
-    print("=== DEUTSCH-JOSZA RUN 1 (S_n^c => 0) ===")
-    print("Circuit 1:\n", circ1)
-    print("Measurement histogram (decimal):", counts1)
-    print()
+    #   (b) assign_complement=1 => states not in S_n forced to 1
+    circ_dj_b, counts_b = run_deutsch_josza_7q(S_n, threshold_dict, assign_complement=1, reps=512)
+    print("\n--- Deutsch–Jozsa run #2 (complement=1) ---")
+    print("Measurement histogram:", counts_b)
     
-    # (b) assign_complement = 1
-    circ2, counts2 = run_deutsch_josza_7q(S_n_true, threshold_dict, assign_complement=1, reps=512)
-    print("=== DEUTSCH-JOSZA RUN 2 (S_n^c => 1) ===")
-    print("Circuit 2:\n", circ2)
-    print("Measurement histogram (decimal):", counts2)
-    print()
-    
-    print("Done.")
+    print("\nDone.")
 
-if __name__ == "__main__":
-    main()
+# Actually run it:
+main_demo_run()
+

@@ -1,10 +1,10 @@
 # ============================
-# main.py
+# main.py 
 # ============================
 def main_demo_run():
-    # S_n INPUT VALUES: some set of 7-bit patterns
-    S_n = [5, 15, 27, 29]
-    print("=== Example with S_n =", S_n, "===")
+    # S_n: some set of 7-bit patterns
+    S_n = [20, 27, 29, 55]
+    print("=== Values of S_n in this run =", S_n, "===")
     
     # Step 1: GROVER to identify/amplify states in S_n
     # Choose # of iterations (try 2..5 for demonstration)
@@ -25,9 +25,10 @@ def main_demo_run():
         print(f"State {x} => {c} counts")
     print(f"Sum of marked states: {total_marked_counts}\n")
     
-    # Step 2: THRESHOLD ASSIGNMENT
+    # Step 2: threshold assignment
     # Suppose threshold=20 => any x >= 20 => 1, else => 0
-    Sigma_T = 60
+    Sigma_T = 15
+    print("=== The value of the threshold Sigma_T in this run =", Sigma_T, "===")
     threshold_dict = classical_threshold_assignment(S_n, Sigma_T)
     print("--- Threshold assignment ---")
     for x in S_n:
@@ -48,4 +49,3 @@ def main_demo_run():
 
 # Actually run it:
 main_demo_run()
-

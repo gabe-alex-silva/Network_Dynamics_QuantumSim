@@ -1,25 +1,27 @@
-import cirq
-
+# ============================
+# deutsch_josza.py
+# ============================
 def classical_threshold_assignment(S_n, Sigma_T):
     """
-    For each x in S_n: if x >= Sigma_T => 1, else => 0.
-    Return a dict threshold_dict[x] = 0 or 1.
+    If x >= Sigma_T => 1, else 0
     """
     threshold_dict = {}
     for x in S_n:
         threshold_dict[x] = 1 if x >= Sigma_T else 0
     return threshold_dict
 
+import cirq
+import qsimcirq
+
 def build_deutsch_josza_oracle_7q(qubits, ancilla, S_n, threshold_dict, assign_complement):
     """
-    7 data qubits + 1 ancilla:
-      For x in [0..127]:
-        if x in S_n => f(x) = threshold_dict[x],
-        else => f(x) = assign_complement.
-      If f(x)=1, flip ancilla's phase.
+    S_n: set of actual states
+    threshold_dict: {x: 0 or 1} if x in S_n
+    assign_complement: 0 or 1 for x not in S_n
     """
     circuit = cirq.Circuit()
-    n = len(qubits)  # should be 7
+    n = len(qubits)
+    
     def f(x):
         if x in threshold_dict:
             return threshold_dict[x]
@@ -28,47 +30,48 @@ def build_deutsch_josza_oracle_7q(qubits, ancilla, S_n, threshold_dict, assign_c
     
     for x in range(2**n):
         if f(x) == 1:
-            bin_str = format(x, '0{}b'.format(n))
+            bin_str = format(x, f'0{n}b')
             ops = []
+            # Flip 0-bits
             for i, bit in enumerate(bin_str):
                 if bit == '0':
                     ops.append(cirq.X(qubits[i]))
             # multi-controlled Z on ancilla
             ops.append(cirq.Z(ancilla).controlled_by(*qubits))
+            # unflip 0-bits
             for i, bit in enumerate(bin_str):
                 if bit == '0':
                     ops.append(cirq.X(qubits[i]))
             circuit.append(ops)
     return circuit
 
-def run_deutsch_josza_7q(S_n, threshold_dict, assign_complement, reps=1024):
+def run_deutsch_josza_7q(S_n, threshold_dict, assign_complement, reps=512):
     """
-    7 system qubits + 1 ancilla:
-      1) ancilla -> |1>
-      2) H on all 7 + ancilla
-      3) Oracle
-      4) H on all 7 + ancilla
-      5) measure
+    7 data qubits + 1 ancilla
+    Steps:
+      - ancilla -> |1>
+      - H on all qubits
+      - Oracle
+      - H on all
+      - measure
     """
     qubits = [cirq.LineQubit(i) for i in range(7)]
     ancilla = cirq.LineQubit(7)
     circuit = cirq.Circuit()
     
-    # 1) ancilla -> |1>
+    # ancilla => |1>
     circuit.append(cirq.X(ancilla))
-    # 2) hadamard on all 7 + ancilla
+    # hadamard on all
     for q in qubits + [ancilla]:
         circuit.append(cirq.H(q))
     
-    # 3) Oracle
-    oracle_circ = build_deutsch_josza_oracle_7q(qubits, ancilla, S_n, threshold_dict, assign_complement)
-    circuit += oracle_circ
+    oracle = build_deutsch_josza_oracle_7q(qubits, ancilla, S_n, threshold_dict, assign_complement)
+    circuit += oracle
     
-    # 4) final H
+    # final hadamard
     for q in qubits + [ancilla]:
         circuit.append(cirq.H(q))
     
-    # 5) measure
     circuit.append(cirq.measure(*qubits, ancilla, key='m'))
     
     sim = qsimcirq.QSimSimulator()

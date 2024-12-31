@@ -108,7 +108,8 @@ def run_grover_7qubits(S_n, num_iterations=2, repetitions=512):
 #                              T E S T / M A I N                               #
 ###############################################################################
 def main():
-    # Example: let's mark a single state S_n = [5]
+    #INPUT VALUES FOR S_n
+    # Example: Mark a single state S_n = [5]. Add other values as required, e.g. S_n = [5, 12. 56, 92]
     S_n = [5]
     
     for num_iter in [0,1,2,3,4,5,6,7]:

@@ -1,132 +1,82 @@
-!pip install --quiet cirq
-!pip install --quiet qsimcirq
+# =========================
+# grover.py 
+# =========================
 
-import cirq
-import qsimcirq
-import numpy as np
-from collections import Counter
-
-###############################################################################
-#                      G R O V E R   O R A C L E                #
-###############################################################################
-def build_oracle_mark_data_qubits(data_qubits, S_n):
+def build_grover_marking(data_qubits, ancilla, S_n):
     """
-    data_qubits: list of 7 qubits (no ancilla!)
-    S_n: set/list of marked decimal states in [0..127]
-    
-    For each x in S_n, we do:
-      1) Flip '0'-bits so that the data qubits become |111...1> if state = x
-      2) Multi-controlled Z on the last data qubit, controlled by the first (n-1)
-      3) Unflip '0'-bits
-    This imposes a global phase of -1 only on |x>.
+    Oracle step: flips the phase of states in S_n.
+    data_qubits: list of 7 qubits
+    ancilla: qubit for multi-controlled Z
+    S_n: list of decimal integers in [0..127] that are marked
     """
     circuit = cirq.Circuit()
-    n = len(data_qubits)  # should be 7 (assuming 7-qubit search space)
+    n = len(data_qubits)  # 7
     for x in S_n:
         bin_str = format(x, f'0{n}b')
         ops = []
-        # 1) Flip any qubits whose bit is '0'
+        # Flip qubits that are '0'
         for i, bit in enumerate(bin_str):
             if bit == '0':
                 ops.append(cirq.X(data_qubits[i]))
-        # 2) Multi-controlled Z on the last data qubit
-        ops.append(
-            cirq.Z(data_qubits[-1]).controlled_by(*data_qubits[:-1])
-        )
-        # 3) Unflip
+        # multi-controlled Z on ancilla
+        ops.append(cirq.Z(ancilla).controlled_by(*data_qubits))
+        # Unflip qubits that were '0'
         for i, bit in enumerate(bin_str):
             if bit == '0':
                 ops.append(cirq.X(data_qubits[i]))
         circuit.append(ops)
     return circuit
 
-###############################################################################
-#                         G R O V E R   D I F F U S I O N                      #
-###############################################################################
 def build_grover_diffusion(data_qubits):
     """
-    Standard Grover diffusion operator on the data qubits.
+    Standard Grover diffusion operator:
     1) H^n
     2) X^n
-    3) multi-controlled Z (target = last qubit, controls = others)
+    3) Multi-controlled Z about |000...0>
     4) X^n
     5) H^n
     """
     circuit = cirq.Circuit()
-    n = len(data_qubits)
-    # 1) H on each qubit
     circuit.append(cirq.H.on_each(*data_qubits))
-    # 2) X on each qubit
     circuit.append(cirq.X.on_each(*data_qubits))
-    # 3) multi-controlled Z on last qubit, controlled by first (n-1)
-    circuit.append(
-        cirq.Z(data_qubits[-1]).controlled_by(*data_qubits[:-1])
-    )
-    # 4) X on each qubit
+    # multi-controlled Z on last qubit
+    circuit.append(cirq.Z(data_qubits[-1]).controlled_by(*data_qubits[:-1]))
     circuit.append(cirq.X.on_each(*data_qubits))
-    # 5) H on each qubit
     circuit.append(cirq.H.on_each(*data_qubits))
     return circuit
 
-###############################################################################
-#                         G R O V E R   M A I N   R U N                        #
-###############################################################################
-def run_grover_7qubits(S_n, num_iterations=2, repetitions=512):
+def run_grover_search_on_7qubits_with_ancilla(S_n, num_iterations=3, repetitions=512):
     """
-    Perform Grover search over 7 data qubits (128 states).
-    S_n: set/list of marked states (integers in [0..127])
-    num_iterations: how many times we do 'mark + diffusion'
-    repetitions: how many shots
-    
-    We'll measure data_qubits at the end and return a histogram.
+    8 qubits total => 7 data + 1 ancilla
+    Steps:
+      - Put data qubits in uniform superposition
+      - Repeat marking + diffusion `num_iterations` times
+      - Measure
+    Returns (final_circuit, histogram_data, histogram_ancilla)
     """
-    # 1) Create 7 line qubits
-    data_qubits = [cirq.LineQubit(i) for i in range(7)]
+    # 1) Create 8 line qubits
+    qubits = [cirq.LineQubit(i) for i in range(8)]
+    data_qubits = qubits[:7]
+    ancilla = qubits[7]
     
-    # 2) Build the circuit
     circuit = cirq.Circuit()
     
-    # (a) Put data_qubits into uniform superposition
+    # 2) Uniform superposition on data qubits
     circuit.append(cirq.H.on_each(*data_qubits))
     
-    # (b) Repeat Mark + Diffuse
+    # 3) Repeated marking + diffusion
     for _ in range(num_iterations):
-        circuit += build_oracle_mark_data_qubits(data_qubits, S_n)
+        circuit += build_grover_marking(data_qubits, ancilla, S_n)
         circuit += build_grover_diffusion(data_qubits)
     
-    # (c) Measure all
-    circuit.append(cirq.measure(*data_qubits, key='m'))
+    # 4) Measure data qubits + ancilla
+    circuit.append(cirq.measure(*data_qubits, key='m_data'))
+    circuit.append(cirq.measure(ancilla, key='m_ancilla'))
     
-    # 3) Simulate with qsim
-    simulator = qsimcirq.QSimSimulator()
-    result = simulator.run(circuit, repetitions=repetitions)
-    histogram = result.histogram(key='m')
+    # 5) Simulate
+    sim = qsimcirq.QSimSimulator()
+    result = sim.run(circuit, repetitions=repetitions)
     
-    return circuit, histogram
-
-###############################################################################
-#                              T E S T / M A I N                               #
-###############################################################################
-def main():
-    #INPUT VALUES FOR S_n
-    # Example: Mark a single state S_n = [5]. Add other values as required, e.g. S_n = [5, 12. 56, 92]
-    S_n = [5]
-    
-    for num_iter in [0,1,2,3,4,5,6,7]:
-        print(f"=== Grover with num_iterations={num_iter} ===")
-        circ, hist = run_grover_7qubits(S_n, num_iterations=num_iter, repetitions=512)
-        
-        # Tally how many times we got the marked states:
-        sum_marked = sum(hist[x] for x in S_n if x in hist)
-        sum_unmarked = sum(hist[x] for x in hist if x not in S_n)
-        
-        print(f"Marked states counts: {sum_marked} out of 512 shots.")
-        print(f"Sum of unmarked states: {sum_unmarked}.")
-        
-        # Possibly show the top few in the distribution
-        top_items = sorted(hist.items(), key=lambda x: x[1], reverse=True)[:5]
-        print("Histogram top few:", top_items)
-        print()
-
-if __name__ == '__main__':
-    main()
+    hist_data = result.histogram(key='m_data')
+    hist_anc  = result.histogram(key='m_ancilla')
+    return circuit, hist_data, hist_anc

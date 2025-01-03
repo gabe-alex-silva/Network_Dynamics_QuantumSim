@@ -68,8 +68,7 @@ def run_grover_7qubits(S_n, num_iterations=2, repetitions=512):
     """
     Perform Grover search over 7 data qubits (128 states).
     S_n: set/list of marked states (integers in [0..127])
-    num_iterations: how many times we do 'mark + diffusion'
-    repetitions: how many shots
+    num_iterations = shots: number of times 'mark + diffusion' repetitions
     
     We'll measure data_qubits at the end and return a histogram.
     """
